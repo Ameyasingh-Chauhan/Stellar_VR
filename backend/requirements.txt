@@ -4,7 +4,8 @@ python-multipart==0.0.6
 requests==2.31.0
 numpy==1.26.3
 opencv-python-headless==4.8.1.78
-transformers==4.33.1
+transformers==4.36.0
+tokenizers==0.15.0
 huggingface-hub==0.34.4
 safetensors==0.6.2
 tqdm==4.66.1
