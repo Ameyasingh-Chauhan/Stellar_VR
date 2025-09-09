@@ -1,0 +1,15 @@
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+python-multipart==0.0.6
+requests==2.31.0
+numpy==1.26.3
+opencv-python-headless==4.8.1.78
+transformers==4.33.1
+tokenizers==0.21.2
+huggingface-hub==0.34.4
+safetensors==0.6.2
+tqdm==4.66.1
+pillow==10.2.0
+torch==2.2.2
+torchvision==0.17.2
+torchaudio==2.2.2
