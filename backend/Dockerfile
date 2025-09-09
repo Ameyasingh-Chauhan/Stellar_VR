@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
     git \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,7 +18,7 @@ COPY requirements.txt .
 
 # Upgrade pip and install Python dependencies
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
 COPY . .
