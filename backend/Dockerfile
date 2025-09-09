@@ -23,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Make start script executable
-RUN chmod +x start.sh
+# Make start script executable (if it exists)
+RUN if [ -f start.sh ]; then chmod +x start.sh; fi
 
 # Expose port
 EXPOSE 8000
@@ -33,5 +33,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Start command
-CMD ["./start.sh"]
+# Start command - fallback to direct uvicorn if start.sh doesn't work
+CMD ["sh", "-c", "if [ -f start.sh ] && [ -x start.sh ]; then ./start.sh; else uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}; fi"]
