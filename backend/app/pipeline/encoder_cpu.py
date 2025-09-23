@@ -115,12 +115,11 @@ def pack_and_encode_panoramic_stereo(panoramic_dir, output_path, audio_path=None
     cmd += [
         '-vf', f'scale={final_w}:{final_h}:flags=lanczos',
         '-c:v', 'libx265',  # Force H.265 (HEVC) encoder
-        '-pix_fmt', 'yuv420p10le',  # 10-bit color depth
-        '-b:v', '100M',  # 100 Mbps bitrate for maximum quality
-        '-preset', 'veryslow',  # Very slow preset for maximum quality (removed unsupported tune)
-        '-profile:v', 'main10',  # Main 10 profile for 10-bit HEVC
+        '-pix_fmt', 'yuv420p',  # 8-bit color depth for better performance
+        '-crf', str(CRF),  # Use CRF from config for quality control
+        '-preset', 'medium',  # Balanced preset for speed/quality
+        '-profile:v', 'main',  # Main profile for HEVC
         '-level', '5.1',
-        '-x265-params', 'no-sao=1',  # Disable SAO for better quality
     ]
     
     # Add spatial metadata for VR180 equirectangular projection

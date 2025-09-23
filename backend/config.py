@@ -35,8 +35,8 @@ USE_REAL_ESRGAN = False  # Disabled since we're using online services
 SR_SCALE = 1  # No super-resolution scaling (handled by online services)
 # Encoding - Use HEVC encoder for better quality
 ENCODER = "libx265"  # Changed from libx264 to libx265 for better quality
-CRF = 18  # Lower CRF for higher quality (from 23 to 18)
-PIX_FMT = "yuv420p10le"  # 10-bit color depth for better quality
+CRF = 23  # Balanced CRF for speed/quality (was 18 for higher quality)
+PIX_FMT = "yuv420p"  # 8-bit color depth for better performance (was yuv420p10le)
 # Misc
 FPS = 30
 # Ultra-fast processing mode - Enable by default for minimal processing
