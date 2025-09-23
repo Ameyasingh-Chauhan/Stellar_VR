@@ -1,0 +1,20 @@
+fastapi
+uvicorn[standard]
+numpy
+opencv-python-headless
+Pillow
+torch>=1.12.0
+torchvision
+tqdm
+ffmpeg-python
+moviepy
+transformers>=4.34.0
+diffusers
+accelerate
+safetensors
+requests
+# Use pre-compiled wheels for Real-ESRGAN dependencies
+realesrgan
+basicsr
+scikit-image
+websockets

@@ -1,0 +1,6 @@
+{
+  "dpt": "Intel/dpt-large",
+  "sd_inpaint": "runwayml/stable-diffusion-inpainting",
+  "real_esrgan": "RealESRGAN_x2.pth (download release manually or via script)",
+  "lama": "saic-mdal/lama"
+}
