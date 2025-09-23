@@ -34,6 +34,7 @@ def inject_vr180_panoramic_tags(video_path):
         '-metadata:s:v:0', 'stereo_mode=left-right',
         '-metadata:s:v:0', 'spherical=true',
         '-metadata:s:v:0', 'projection=equirectangular',
+        '-metadata:s:v:0', 'InitialViewFOVDegrees=180',
         str(temp_path)
     ]
     
@@ -65,7 +66,7 @@ def inject_vr180_panoramic_tags(video_path):
         print("[VR180Metadata] Falling back to Google Spatial Media metadata")
         temp_path2 = video_path_obj.parent / f"{video_path_obj.stem}_temp2{video_path_obj.suffix}"
         
-        # Google Spatial Media metadata for maximum compatibility
+        # Google Spatial Media metadata for maximum compatibility with all requested tags
         google_spatial_metadata = (
             "Version=1.0,Equirectangular,Stitched=true,"
             "ProjectionType=equirectangular,StereoMode=left-right,"
@@ -79,7 +80,10 @@ def inject_vr180_panoramic_tags(video_path):
             '-i', str(video_path),
             '-c', 'copy',  # Copy streams without re-encoding
             '-metadata:s:v:0', f'spherical-video={google_spatial_metadata}',
-            '-metadata', 'stereo-mode=left-right',
+            '-metadata:s:v:0', 'stereo_mode=left-right',
+            '-metadata:s:v:0', 'projection_type=equirectangular',
+            '-metadata:s:v:0', 'spherical=true',
+            '-metadata:s:v:0', 'InitialViewFOVDegrees=180',
             str(temp_path2)
         ]
         
@@ -161,73 +165,3 @@ def inject_vr180_sbs_tags(video_path):
         if temp_path.exists():
             temp_path.unlink()
         raise
-    
-    tmp = mp4_path + '.meta.mp4'
-    
-    # Create Google Spatial Media metadata
-    spatial_metadata = {
-        "Spherical": "true",
-        "Stitched": "true",
-        "StitchingSoftware": "STELLAR VR180 Pipeline",
-        "ProjectionType": "equirectangular",
-        "StereoMode": "left-right",
-        "SourceCount": "2",
-        "InitialViewHeadingDegrees": "0",
-        "InitialViewPitchDegrees": "0",
-        "InitialViewRollDegrees": "0",
-        "Timestamp": "0",
-        "FullPanoWidthPixels": "7680",
-        "FullPanoHeightPixels": "3840",
-        "CroppedAreaImageWidthPixels": "7680",
-        "CroppedAreaImageHeightPixels": "3840",
-        "CroppedAreaLeftPixels": "0",
-        "CroppedAreaTopPixels": "0"
-    }
-    
-    # Create metadata string for FFmpeg
-    metadata_args = []
-    for key, value in spatial_metadata.items():
-        metadata_args.extend(['-metadata', f'{key}={value}'])
-    
-    # Add additional standard metadata
-    standard_metadata = [
-        '-metadata', 'stereo_mode=left_right',
-        '-metadata', 'projection=equirectangular',
-        '-metadata', 'fov=180',
-        '-metadata', 'yaw=0',
-        '-metadata', 'pitch=0',
-        '-metadata', 'roll=0',
-        '-metadata', 'full_range=1'
-    ]
-    
-    # Combine all metadata
-    all_metadata = metadata_args + standard_metadata
-    
-    # Inject VR180 equirectangular stereo metadata
-    cmd = [
-        'ffmpeg', '-y', '-i', mp4_path,
-        '-c', 'copy'
-    ] + all_metadata + [tmp]
-    
-    print(f"[MetadataInjector] Running command: {' '.join(cmd)}")
-    
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        os.replace(tmp, mp4_path)
-        print("[MetadataInjector] VR180 panoramic metadata injected successfully")
-        
-        # Verify metadata was added
-        verify_cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', '-show_format', mp4_path]
-        try:
-            verify_result = subprocess.run(verify_cmd, capture_output=True, text=True)
-            if verify_result.returncode == 0:
-                print("[MetadataInjector] Metadata verification completed")
-        except Exception as e:
-            print(f"[MetadataInjector] Could not verify metadata: {e}")
-            
-    except subprocess.CalledProcessError as e:
-        print(f"[MetadataInjector] Warning: Failed to inject metadata: {e}")
-        print(f"[MetadataInjector] stderr: {e.stderr}")
-        # Continue even if metadata injection fails
-        if os.path.exists(tmp):
-            os.replace(tmp, mp4_path)

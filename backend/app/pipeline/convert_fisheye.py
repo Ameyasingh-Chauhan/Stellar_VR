@@ -244,17 +244,68 @@ def enhance_panoramic_immersion(img):
     return enhanced
 
 def match_brightness_to_reference(output_img, ref_img):
-    """Match brightness of output image to reference image"""
+    """
+    Match brightness of output image to reference image
+    Preserve original brightness/contrast from input video
+    Apply tone mapping so output is not dark or dull
+    """
     # In ultra-fast mode, skip brightness matching for maximum speed
     if ULTRAFAST_MODE:
         return output_img
     
-    # simple gain/gamma match using mean brightness in Y channel
-    y_out = cv2.cvtColor(output_img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float32)
-    y_ref = cv2.cvtColor(ref_img, cv2.COLOR_BGR2YUV)[:,:,0].astype(np.float32)
-    gain = (y_ref.mean() + 1e-8) / (y_out.mean() + 1e-8)
-    out = np.clip(output_img.astype(np.float32) * gain, 0, 255).astype(np.uint8)
-    return out
+    # Convert to LAB color space for better brightness matching
+    ref_lab = cv2.cvtColor(ref_img, cv2.COLOR_BGR2LAB)
+    output_lab = cv2.cvtColor(output_img, cv2.COLOR_BGR2LAB)
+    
+    # Extract L channel (lightness)
+    ref_l = ref_lab[:,:,0].astype(np.float32)
+    output_l = output_lab[:,:,0].astype(np.float32)
+    
+    # Calculate statistics for histogram matching
+    ref_mean, ref_std = ref_l.mean(), ref_l.std()
+    output_mean, output_std = output_l.mean(), output_l.std()
+    
+    # Avoid division by zero
+    if output_std == 0:
+        output_std = 1e-8
+    
+    # Normalize output L channel to match reference statistics
+    # This preserves original brightness/contrast while avoiding dark output
+    normalized_l = (output_l - output_mean) * (ref_std / output_std) + ref_mean
+    
+    # Clip values to valid range
+    normalized_l = np.clip(normalized_l, 0, 255)
+    
+    # Apply the normalized L channel back to the output image
+    output_lab[:,:,0] = normalized_l.astype(np.uint8)
+    
+    # Convert back to BGR
+    result = cv2.cvtColor(output_lab, cv2.COLOR_LAB2BGR)
+    
+    # Apply tone mapping to ensure output is not dark or dull
+    # Convert to float for processing
+    result_float = result.astype(np.float32) / 255.0
+    
+    # Apply gamma correction for better tone mapping
+    gamma = 0.9  # Slight brightening
+    result_gamma = np.power(result_float, gamma)
+    
+    # Apply contrast enhancement using CLAHE on the L channel
+    lab_result = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
+    l_channel = lab_result[:,:,0]
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    l_channel = clahe.apply(l_channel)
+    lab_result[:,:,0] = l_channel
+    result_clahe = cv2.cvtColor(lab_result, cv2.COLOR_LAB2BGR)
+    
+    # Blend the gamma-corrected and CLAHE-enhanced results
+    result_final = cv2.addWeighted(result_gamma.astype(np.float32), 0.6, 
+                                   result_clahe.astype(np.float32)/255.0, 0.4, 0)
+    
+    # Convert back to uint8
+    result_final = np.clip(result_final * 255.0, 0, 255).astype(np.uint8)
+    
+    return result_final
 
 def fix_color_artifacts(img):
     """Fix color artifacts in the output image"""

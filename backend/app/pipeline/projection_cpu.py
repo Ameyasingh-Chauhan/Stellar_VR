@@ -4,16 +4,22 @@ from .utils import ensure_dir
 from config import PANINI_MIX, STEREO_MIX, IDENTITY_MIX, TARGET_PER_EYE, MAX_WORKERS, SBS_WIDTH, SBS_HEIGHT, ULTRAFAST_MODE
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def panini_map(xx, yy, s=0.7):
+def panini_map(xx, yy, s=0.8):
+    """Panini projection with increased cinematic effect (s from 0.7 to 0.8)"""
     denom = 1 + s*(1 - xx*xx)
     return xx/denom, yy/denom
 
 def stereographic_map(xx, yy):
+    """Stereographic projection for panoramic curvature"""
     denom = 1 + xx*xx + yy*yy
     return 2*xx/denom, 2*yy/denom
 
 def blend_and_panoramic(img, per_eye=TARGET_PER_EYE, fov_deg=180):
-    """Create panoramic projection with cinematic barrel distortion for immersive dome effect"""
+    """
+    Create panoramic projection with cinematic barrel distortion for immersive dome effect
+    Implements Panini + stereographic blending for smooth panoramic curvature at edges
+    Ensures edges are bent/panoramic, not flat circles
+    """
     # Even in ultra-fast mode, apply cinematic projection for better quality
     h,w = img.shape[:2]
     
@@ -23,18 +29,19 @@ def blend_and_panoramic(img, per_eye=TARGET_PER_EYE, fov_deg=180):
     xx, yy = np.meshgrid(nx, ny)
     
     # Apply projection transforms with cinematic parameters
-    px, py = panini_map(xx, yy, s=PANINI_MIX)
+    px, py = panini_map(xx, yy, s=PANINI_MIX)  # Increased from 0.7 to 0.8
     sx, sy = stereographic_map(xx, yy)
     
     # Blend projections with cinematic effect
+    # Adjusted weights for stronger panoramic curvature
     bx = PANINI_MIX*px + STEREO_MIX*sx + IDENTITY_MIX*xx
     by = PANINI_MIX*py + STEREO_MIX*sy + IDENTITY_MIX*yy
     
     # Apply enhanced barrel distortion for cinematic dome effect
-    # This creates the cinematic "inside the scene" feeling
+    # This creates the cinematic "inside the scene" feeling with bent edges
     r = np.sqrt(bx*bx + by*by)
     # Enhanced distortion for cinematic effect with smoother transition
-    distortion = 1 + 0.30 * (r**2.5)  # Stronger cinematic barrel distortion
+    distortion = 1 + 0.35 * (r**2.5)  # Increased from 0.30 to 0.35 for stronger effect
     bx_distorted = bx * distortion
     by_distorted = by * distortion
     
@@ -43,8 +50,29 @@ def blend_and_panoramic(img, per_eye=TARGET_PER_EYE, fov_deg=180):
     mapy = ((by_distorted + 1.0)/2.0) * h
     
     # Apply remapping with border reflection for cinematic quality
+    # Use BORDER_WRAP for better edge continuity in panoramic projections
     warped = cv2.remap(img, mapx.astype('float32'), mapy.astype('float32'), 
-                       interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                       interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+    
+    # Apply additional edge enhancement to ensure edges are bent/panoramic
+    # Create a mask for edge enhancement
+    center_x, center_y = w // 2, h // 2
+    dist_from_center = np.sqrt((np.arange(w) - center_x)**2 + (np.arange(h)[:, np.newaxis] - center_y)**2)
+    max_dist = np.sqrt(center_x**2 + center_y**2)
+    normalized_dist = dist_from_center / max_dist
+    
+    # Apply stronger enhancement to edges for panoramic curvature
+    edge_mask = normalized_dist > 0.7  # Focus on outer 30% for edge enhancement
+    if np.any(edge_mask):
+        # Apply slight sharpening to edges for better definition
+        kernel = np.array([[-0.5, -1, -0.5],
+                          [-1, 5, -1],
+                          [-0.5, -1, -0.5]]) * 0.3
+        edge_enhanced = cv2.filter2D(warped, -1, kernel)
+        # Blend enhanced edges with original
+        warped = np.where(edge_mask[..., np.newaxis], 
+                         cv2.addWeighted(warped, 0.8, edge_enhanced, 0.2, 0), 
+                         warped)
     
     return warped
 
@@ -378,6 +406,7 @@ def create_final_panoramic_stereo_from_fisheye(left_dir, right_dir, output_dir, 
             temp_output_path = temp_dir / f"temp_equi_{i:06d}.png"
             
             # FFmpeg command using v360 filter for proper fisheye to equirectangular conversion
+            # Use 8192x4096 resolution to match what the pipeline is actually generating
             ffmpeg_cmd = [
                 'ffmpeg', '-y',
                 '-i', str(temp_sbs_path),

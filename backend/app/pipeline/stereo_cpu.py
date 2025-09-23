@@ -1,7 +1,7 @@
 import numpy as np, cv2
 
 class StereoCPU:
-    def __init__(self, max_disp_px=60):  # Increased from 45 to 60 for cinematic stereo effect
+    def __init__(self, max_disp_px=80):  # Increased from 60 to 80 for stronger cinematic stereo effect
         self.max_disp = max_disp_px
         print(f'[StereoCPU] Initialized with max disparity: {self.max_disp}px (enhanced for cinematic VR180)')
     
@@ -9,6 +9,7 @@ class StereoCPU:
         """
         Generate stereo left/right views from depth map with enhanced disparity
         Implements depth-based parallax shift for cinematic "inside the scene" effect
+        Caps disparity to avoid ghosting while pushing depth more than current pipeline
         """
         h,w = frame.shape[:2]
         
@@ -18,8 +19,11 @@ class StereoCPU:
         # Calculate disparity map with enhanced range for cinematic effect
         # Apply non-linear disparity mapping for more pronounced depth perception
         depth_normalized = depth_map_resized.astype('float32') / 255.0
-        # Enhanced non-linear mapping for cinematic depth effect
-        disp = (1.0 - np.power(depth_normalized, 0.6)) * self.max_disp
+        # Enhanced non-linear mapping for cinematic depth effect with better depth perception
+        disp = (1.0 - np.power(depth_normalized, 0.5)) * self.max_disp  # Changed from 0.6 to 0.5 for stronger effect
+        
+        # Cap disparity to avoid ghosting - limit maximum disparity to prevent artifacts
+        disp = np.clip(disp, 0, self.max_disp)
         
         # Create coordinate grids
         xx, yy = np.meshgrid(np.arange(w), np.arange(h))
