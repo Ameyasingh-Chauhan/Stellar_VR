@@ -5,7 +5,7 @@ import json
 def inject_vr180_tags(mp4_path):
     """Inject VR180 metadata for dual-fisheye format (legacy)"""
     tmp = mp4_path + '.meta.mp4'
-    cmd = ['ffmpeg','-y','-i', mp4_path, '-c', 'copy', '-metadata:s:v:0', 'stereo_mode=left_right', '-metadata:s:v:0', 'projection=vr180', tmp]
+    cmd = ['ffmpeg','-y','-i', mp4_path, '-c', 'copy', '-metadata:s:v:0', 'stereo-mode=left-right', '-metadata:s:v:0', 'projection=equirectangular', tmp]
     subprocess.run(cmd, check=True)
     os.replace(tmp, mp4_path)
 
@@ -31,10 +31,9 @@ def inject_vr180_panoramic_tags(video_path):
         'ffmpeg', '-y',
         '-i', str(video_path),
         '-c', 'copy',  # Copy streams without re-encoding
-        '-metadata:s:v:0', 'stereo_mode=left-right',
+        '-metadata:s:v:0', 'stereo-mode=left-right',
         '-metadata:s:v:0', 'spherical=true',
         '-metadata:s:v:0', 'projection=equirectangular',
-        '-metadata:s:v:0', 'InitialViewFOVDegrees=180',
         str(temp_path)
     ]
     
@@ -80,10 +79,9 @@ def inject_vr180_panoramic_tags(video_path):
             '-i', str(video_path),
             '-c', 'copy',  # Copy streams without re-encoding
             '-metadata:s:v:0', f'spherical-video={google_spatial_metadata}',
-            '-metadata:s:v:0', 'stereo_mode=left-right',
+            '-metadata:s:v:0', 'stereo-mode=left-right',
             '-metadata:s:v:0', 'projection_type=equirectangular',
             '-metadata:s:v:0', 'spherical=true',
-            '-metadata:s:v:0', 'InitialViewFOVDegrees=180',
             str(temp_path2)
         ]
         
@@ -139,7 +137,7 @@ def inject_vr180_sbs_tags(video_path):
         'ffmpeg', '-y',
         '-i', str(video_path),
         '-c', 'copy',  # Copy streams without re-encoding
-        '-metadata', 'stereo_mode=left_right',
+        '-metadata', 'stereo-mode=left-right',
         '-metadata', 'spherical=false',
         str(temp_path)
     ]

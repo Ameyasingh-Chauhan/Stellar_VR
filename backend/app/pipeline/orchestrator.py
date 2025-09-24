@@ -5,7 +5,7 @@ from .utils import ensure_dir, extract_frames_and_audio, list_frames, global_min
 from .depth_cpu import DepthEstimatorCPU
 from .stereo_cpu import StereoCPU
 from .outpaint_cpu import OutpaintCPU
-from .projection_cpu import process_dirs as projection_process_dirs, create_final_panoramic_stereo_from_fisheye
+from .projection_cpu import process_dirs as projection_process_dirs, create_final_panoramic_stereo
 from .foveate_cpu import foveate_dir
 from .sr_cpu import run_sr
 from .encoder_cpu import pack_and_encode_panoramic_stereo
@@ -39,10 +39,10 @@ class VR180PipelineOrchestrator:
         if ULTRAFAST_MODE:
             frame_name = Path(frame_path).name
             frame_num = int(frame_name.replace('frame_', '').replace('.png', ''))
-            # Process every 3rd frame in ultra-fast mode
-            if frame_num % 3 != 0:
+            # Process every 2nd frame in ultra-fast mode (less skipping)
+            if frame_num % 2 != 0:
                 # Just copy the previous depth frame or create a blank one
-                prev_frame_num = ((frame_num // 3) * 3) - 3
+                prev_frame_num = ((frame_num // 2) * 2) - 2
                 if prev_frame_num >= 0:
                     prev_depth_path = Path(depth_dir) / f'depth_{prev_frame_num:06d}.png'
                     if prev_depth_path.exists():
@@ -69,10 +69,10 @@ class VR180PipelineOrchestrator:
         if ULTRAFAST_MODE:
             frame_name = Path(frame_path).name
             frame_num = int(frame_name.replace('frame_', '').replace('.png', ''))
-            # Process every 3rd frame in ultra-fast mode
-            if frame_num % 3 != 0:
+            # Process every 2nd frame in ultra-fast mode (less skipping)
+            if frame_num % 2 != 0:
                 # Just copy the previous stereo frames
-                prev_frame_num = ((frame_num // 3) * 3) - 3
+                prev_frame_num = ((frame_num // 2) * 2) - 2
                 if prev_frame_num >= 0:
                     prev_left_path = Path(left_dir) / f'frame_{prev_frame_num:06d}.png'
                     prev_right_path = Path(right_dir) / f'frame_{prev_frame_num:06d}.png'
@@ -125,7 +125,7 @@ class VR180PipelineOrchestrator:
         ensure_dir(depth_dir)
         
         # In ultra-fast mode, reduce number of workers
-        workers = min(MAX_WORKERS, 2) if ULTRAFAST_MODE and MAX_WORKERS > 1 else MAX_WORKERS
+        workers = min(MAX_WORKERS, 1) if ULTRAFAST_MODE and MAX_WORKERS > 1 else 1  # Reduce workers for memory
         
         # Process depth estimation with more frequent updates
         with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -167,15 +167,18 @@ class VR180PipelineOrchestrator:
                     print(f'Frame {frame_path} generated an exception: {exc}')
 
         self._emit(progress_callback, 30, 'Outpainting periphery (SD inpaint or fallback)')
-        outpaint_dir = workdir / 'outpaint'
-        ensure_dir(outpaint_dir)
-        self.outpaint.bulk_outpaint(left_dir, outpaint_dir, progress_cb=progress_callback)
+        outpaint_left_dir = workdir / 'outpaint_left'
+        outpaint_right_dir = workdir / 'outpaint_right'
+        ensure_dir(outpaint_left_dir)
+        ensure_dir(outpaint_right_dir)
+        self.outpaint.bulk_outpaint(left_dir, outpaint_left_dir, progress_cb=progress_callback)
+        self.outpaint.bulk_outpaint(right_dir, outpaint_right_dir, progress_cb=progress_callback)
         
-        self._emit(progress_callback, 45, 'Projection: Panoramic stereo equirectangular (VR180)')
-        # Use dual fisheye to equirectangular conversion with FFmpeg v360 filter
+        self._emit(progress_callback, 45, 'Projection: Equirectangular dome stereo (VR180)')
+        # Use dome projection with Panini + stereographic blending
         panoramic_dir = workdir / 'panoramic_stereo'
         ensure_dir(panoramic_dir)
-        create_final_panoramic_stereo_from_fisheye(str(left_dir), str(right_dir), str(panoramic_dir), progress_cb=progress_callback)
+        create_final_panoramic_stereo(str(outpaint_left_dir), str(outpaint_right_dir), str(panoramic_dir), progress_cb=progress_callback)
         
         self._emit(progress_callback, 62, 'Applying foveated blur & vignette')
         fov_panoramic = workdir / 'fov_panoramic'
@@ -183,7 +186,7 @@ class VR180PipelineOrchestrator:
         foveate_dir(str(panoramic_dir), str(fov_panoramic), progress_cb=progress_callback)
         
         self._emit(progress_callback, 70, 'Computing global normalization values')
-        gm,gM = global_minmax_scan([str(fov_panoramic)], sample_n=10)  # Reduced sample size for faster processing
+        gm,gM = global_minmax_scan([str(fov_panoramic)], sample_n=5)  # Reduced sample size for faster processing
         self._emit(progress_callback, 72, f'Global min/max: {gm:.2f}/{gM:.2f}')
         
         self._emit(progress_callback, 75, 'Super-resolution (CPU fallback)')
@@ -197,9 +200,9 @@ class VR180PipelineOrchestrator:
         else:
             run_sr(str(fov_panoramic), str(sr_panoramic), progress_cb=progress_callback)
         
-        self._emit(progress_callback, 90, 'Encoding final panoramic stereo VR180')
+        self._emit(progress_callback, 90, 'Encoding final equirectangular dome stereo VR180')
         # Use panoramic encoder instead of SBS encoder
-        pack_and_encode_panoramic_stereo(str(sr_panoramic), output_path, audio_path=str(audio_path), force_8k=False, progress_cb=progress_callback)
+        pack_and_encode_panoramic_stereo(str(sr_panoramic), output_path, audio_path=str(audio_path), force_8k=True, progress_cb=progress_callback)
         
         self._emit(progress_callback, 96, 'Injecting VR180 panoramic metadata')
         # Use panoramic metadata injection with proper VR180 tags

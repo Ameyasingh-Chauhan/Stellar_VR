@@ -21,14 +21,21 @@ def extract_frames_and_audio(video_path, frames_dir, audio_out):
     # Build ffmpeg command for frame extraction with optimizations
     cmd_frames = ['ffmpeg','-y','-i', video_path]
     
+    # Combine all video filters into a single -vf parameter to avoid conflicts
+    filters = []
+    
     # Add frame rate reduction if enabled
     if TARGET_FPS and TARGET_FPS < orig_fps:
-        cmd_frames.extend(['-vf', f'fps={TARGET_FPS}'])
+        filters.append(f'fps={TARGET_FPS}')
     
     # Add downscaling - ultra-fast mode uses even more aggressive downscaling
     if INPUT_DOWNSCALE and INPUT_TARGET_HEIGHT:
         target_height = INPUT_TARGET_HEIGHT_ULTRAFAST if ULTRAFAST_MODE else INPUT_TARGET_HEIGHT
-        cmd_frames.extend(['-vf', f"scale=-1:{target_height}"])
+        filters.append(f"scale=-1:{target_height}")
+    
+    # Combine all filters
+    if filters:
+        cmd_frames.extend(['-vf', ','.join(filters)])
     
     cmd_frames.extend(['-vsync','0', f"{frames_dir}/frame_%06d.png"])
     subprocess.check_call(cmd_frames)
@@ -45,7 +52,7 @@ def list_frames(frames_dir):
     files = sorted(glob.glob(f"{frames_dir}/*.png"))
     return files
 
-def global_minmax_scan(dir_list, sample_n=30):
+def global_minmax_scan(dir_list, sample_n=5):  # Reduced sample size for faster processing
     import numpy as np, cv2, glob
     mins=[]; maxs=[]
     for d in dir_list:
